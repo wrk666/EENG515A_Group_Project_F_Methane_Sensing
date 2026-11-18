@@ -1,14 +1,5 @@
 """
-generate_lawnmower_data.py
-
-Fly a lawnmower pattern over the simulated Gaussian plume and save the samples for the team.
-Units everywhere: concentration [ppm], emission rate [g/s], positions [m], wind [m/s].
-Only Particle is needed (no SrmEstimator / EMGR / MOABS data).
-
-Outputs
-  lawnmower_data.npz     all arrays, see the keys in np.savez_compressed below
-  lawnmower_samples.csv  one noisy realization, human readable
-  lawnmower.gif          animation of the flight (set MAKE_GIF = False to skip)
+This file is for visualization
 """
 
 import matplotlib
@@ -16,39 +7,13 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
-from main import X_MIN, X_MAX, Y_MIN, Y_MAX
-
-from ParticleClass import Particle
-
-# # ------------------------------------------------------------------
-# # CONFIG
-# # ------------------------------------------------------------------
-# SOURCE_XY = (80.0, 60.0)          # true source location [m]
-# Q_TRUE = 0.0349                   # true emission rate [g/s] (controlled-release rate in the paper)
-# WIND = np.array([1.0, 0.0])       # constant wind [u, v] [m/s]; air moves toward +x
-# MEAS_Z = 5.0                      # UAV height [m]
-#
-# X_MIN, X_MAX = 0.0, 200.0         # survey area [m]
-# Y_MIN, Y_MAX = 0.0, 200.0
-# LEG_SPACING = 10.0                # distance between legs [m]; legs run along y (crosswind)
-# SAMPLE_SPACING = 2.0              # distance between samples along a leg [m]
-# DT = 0.5                          # sampling period [s] (2 Hz sensor; 2 m / 0.5 s = 4 m/s flight speed)
-#
-# NOISE_SIGMAS_PPM = [0.01, 0.05, 0.1]   # additive Gaussian noise levels [ppm]
-# N_REPEATS = 100                   # independent noisy copies per noise level
-# N_GRID = 25                       # candidate source grid is N_GRID x N_GRID cells
-# SEED = 0
-# OUT_NPZ = "Out/lawnmower_data.npz"
-# OUT_CSV = "Out/lawnmower_samples.csv"
-#
-# MAKE_GIF = True                   # also save an animation of the flight
-# OUT_GIF = "Out/lawnmower.gif"
-# GIF_LEVEL = 1                     # which noise level to show (index into NOISE_SIGMAS_PPM)
-# GIF_STEP = 25                     # samples per frame (bigger = smaller file)
 
 
+X_MIN, X_MAX = 0.0, 200.0         # survey area [m]
+Y_MIN, Y_MAX = 0.0, 200.0
 
 
+# Visualization for sampling with given traj
 def make_gif(p, traj, t, wind, y_clean, y, src, sigma, out=OUT_GIF, step=GIF_STEP):
     """Left: true plume (background) + UAV path + measurements. Right: measured ppm vs time."""
     vmax = y_clean.max()
