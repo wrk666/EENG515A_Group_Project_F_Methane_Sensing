@@ -1,23 +1,9 @@
 """
-main.py
+online_main.py
 
 Step-by-step sampling loop (workflow steps 4-6 in the figure): at every step get ONE new sample,
-update Q_hat with it, and choose where to fly next.  Adapted from test_srm.py:
-  - the MOABS lookup is replaced by the Gaussian plume (Particle) + sensor noise, constant known wind
-  - SrmEstimator (RLS + SRM cache) and EmgrEstimator are used exactly as they are
-  - the plan is a "policy": a small object that returns the next position
-
-Policies
-  "lawnmower"      fixed path, same as main.py
-  "lawnmower_rev"  same path flown from the downwind end (the wind direction is known, so the plume is met sooner)
-  "emgr"           lawnmower_rev until the plume is detected, then greedy EMGR: at each step try the 4 moves,
-                   keep the one with the best EMGR score (+ the boundary / visit terms of calcScore)
-  "emgr_anchor"    same, plus the anchor term: pull toward the strongest detection so far
-                   (simplified: no angle test / override of updateAnchor yet)
-Alex owns the policies.  Starting point only: NOT tuned, and not better than the lawnmower yet (see the note
-in the reply / README).  Imports assume the repo layout used in main.py; adjust the SrmEstimator /
-EmgrEstimator / GridCellClass imports to wherever those live.
-Run:  python main.py
+update Q_hat with it, and choose where to fly next.
+Run:  python online_main.py
 """
 
 import numpy as np
@@ -26,6 +12,7 @@ from Ruikun_Sensing.ParticleClass import Particle
 from Ruikun_Sensing.GridCellClass import GridCell
 from Ruikun_Sensing.SrmEstimator import SrmEstimator
 from Ruikun_Sensing.EmgrEstimator import EmgrEstimator
+from Ruikun_Sensing.QMetrics import q_metrics, print_q_report
 # from main import (SOURCE_XY, Q_TRUE, WIND, MEAS_Z, X_MIN, X_MAX, Y_MIN, Y_MAX,
 #                   LEG_SPACING, SAMPLE_SPACING, SEED, lawnmower, candidate_grid)
 
@@ -48,7 +35,6 @@ SEED = 0
 # ------------------------------------------------------------------
 # CONFIG
 # ------------------------------------------------------------------
-TEST_PCA_DENOISER = True
 NOISE_SIGMA_PPM = 0.05        # sensor noise [ppm]
 RIDGE_BETA = 100.0            # SrmEstimator lambda_reg; ppm units, see the sweep (1e-5 fails with noise)
 DETECT_PPM = 0.2              # "plume detected" threshold [ppm] = 4 sigma (old value 8.5e-8 was in MOABS units)
@@ -92,10 +78,9 @@ def lawnmower(x_min, x_max, y_min, y_max, leg_spacing, sample_spacing, z):
     return np.array(pts)
 
 # ------------------------------------------------------------------
-# TODO:DENOISER INTERFACE (Skylor's part)
+# DENOISER INTERFACE (Skylor's part)
 # ------------------------------------------------------------------
 # This is a class for system running without denoiser, Skylor can add WindowPCADenoiser in parameters of function "run" below.
-# Also, Skylor can modify the noise level by changing the parameter of NOISE_SIGMA_PPM to test the PCA's performance under different noise level.
 class IdentityDenoiser:
     """Default: no denoising."""
 
@@ -140,7 +125,7 @@ def run(policy, seed=SEED, n_steps=N_STEPS, denoiser=None):
     visit_map = np.zeros((101, 101))        # path reaches 200 m -> index 100
     detected = False
     anchor_xy, anchor_y = None, -np.inf
-    log = {"pos": [], "y_clean": [], "y_raw": [], "y": [], "q_sum": [], "loc": []}   # y = what the estimator sees
+    log = {"pos": [], "y_clean": [], "y_raw": [], "y": [], "q_sum": [], "q_argmax": [], "q_neigh": [], "loc": [], "q_neigh_rel_err": []}   # y = what the estimator sees
 
     for k in range(n_steps):
         # 1. one new noisy sample at the current position [ppm]
@@ -157,9 +142,11 @@ def run(policy, seed=SEED, n_steps=N_STEPS, denoiser=None):
                 anchor_xy, anchor_y = xm[:2].copy(), y
 
         q = srm.Q_.ravel()
+        qm = q_metrics(q, Q_TRUE)                                   # three readouts of Q, see QMetrics.py
         log["pos"].append(xm.copy()); log["y_clean"].append(y_clean); log["y_raw"].append(y_raw); log["y"].append(y)
-        log["q_sum"].append(q.sum()); log["loc"].append(cand[np.argmax(q)])
-
+        log["q_sum"].append(qm["global"]["Q_hat"]); log["q_argmax"].append(qm["argmax"]["Q_hat"])
+        log["q_neigh"].append(qm["neighborhood"]["Q_hat"]); log["loc"].append(cand[qm["argmax_idx"]])
+        log["q_neigh_rel_err"].append(qm["neighborhood"]["rel_error"])
         # 4. TODO: Path planning: choose the next position (Alex's part, you can refer to "SrmEstimator.py")
         if policy.startswith("emgr") and detected:
             best, best_xp, best_W = np.inf, None, None
@@ -182,29 +169,40 @@ def run(policy, seed=SEED, n_steps=N_STEPS, denoiser=None):
             if k + 1 < len(path):
                 xm = path[k + 1].copy()
                 emgr.step(xm, WIND, update_W=True)                 # keep W in step with the path
-    return cand, {key: np.array(v) for key, v in log.items()}
+    out = {key: np.array(v) for key, v in log.items()}
+    out["Q_hat"] = srm.Q_.ravel().copy()                            # final estimate and cells, for print_q_report
+    out["grid_cells"] = srm.grid_cells_
+    return cand, out
 
 
 def report(name, log, steps=(300, 600, 900, 1200, 1600, N_STEPS)):
     print(f"{name}")
     for s in steps:
         loc = log["loc"][s - 1]
-        print(f"   step {s:5d}: sum(Q_hat) = {log['q_sum'][s - 1]:7.4f} g/s, location error "
+        print(f"   step {s:5d}:Q_true: {Q_TRUE} | 3x3 neighbor Q_hat: {log['q_neigh'][s - 1]:7.4f} g/s | "
+              f"Q_rel_error: {log["q_neigh_rel_err"][s - 1]:7.2%} | location error "
               f"{np.linalg.norm(loc - np.array(SOURCE_XY)):6.1f} m")
 
 
 if __name__ == "__main__":
-    for policy in ("lawnmower", "lawnmower_rev", "emgr", "emgr_anchor"):
+    #Choose different policy to compare.
+    policy_list = [
+        "lawnmower",
+        # "lawnmower_rev",
+        # "emgr",
+        "emgr_anchor"
+    ]
+    for policy in policy_list:
         cand, log = run(policy)
         report(policy, log)
+        print_q_report(log["Q_hat"], Q_TRUE, log["grid_cells"], SOURCE_XY)
 
     # Skylor's test bench: same flight, with and without the denoiser (policy "lawnmower": the example PCA is trained on it)
-    if TEST_PCA_DENOISER:
-        print("denoiser test, policy 'lawnmower':")
-        train = make_training_flights()
-        for name, denoiser in (("none", IdentityDenoiser()), ("PCA example", WindowPCADenoiser(train))):
-            cand, log = run("lawnmower", denoiser=denoiser)
-            rmse = np.sqrt(np.mean((log["y"] - log["y_clean"]) ** 2))
-            loc = log["loc"][-1]
-            print(f"   {name:12s}: RMSE vs clean {rmse:.4f} ppm | final sum(Q_hat) {log['q_sum'][-1]:.4f} g/s | "
-                  f"location error {np.linalg.norm(loc - np.array(SOURCE_XY)):.1f} m")
+    print("denoiser test, policy 'lawnmower':")
+    train = make_training_flights()
+    for name, denoiser in (("none", IdentityDenoiser()), ("PCA example", WindowPCADenoiser(train))):
+        cand, log = run("lawnmower", denoiser=denoiser)
+        rmse = np.sqrt(np.mean((log["y"] - log["y_clean"]) ** 2))
+        loc = log["loc"][-1]
+        print(f"   {name:12s}: RMSE vs clean {rmse:.4f} ppm | final sum(Q_hat) {log['q_sum'][-1]:.4f} g/s | "
+              f"location error {np.linalg.norm(loc - np.array(SOURCE_XY)):.1f} m")
