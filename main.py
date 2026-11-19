@@ -91,7 +91,7 @@ class IdentityDenoiser:
 class WindowPCADenoiser:
     "Skylor can define the PCA Denoiser here"
 
-    def __init__(self, train, window=21, n_components=4):
+    def __init__(self, train, window=21, n_components=15):
         from sklearn.decomposition import PCA
 
         self.windowSize = window
