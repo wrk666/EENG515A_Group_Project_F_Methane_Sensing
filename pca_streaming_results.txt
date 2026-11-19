@@ -1,0 +1,30 @@
+
+Test Seed: 0
+Raw
+Concentration RMSE (ppm): 0.05003351723464799
+Neighborhood emission estimate (g/s): 0.03685115300388367
+Relative emission error (%): 5.590696286039431
+PCA
+Concentration RMSE (ppm): 0.03206138409532125
+Neighborhood emission estimate (g/s): 0.0235843899032725
+Relative emission error (%): 32.42295156562542
+
+Test Seed: 42
+Raw
+Concentration RMSE (ppm): 0.04996081726264326
+Neighborhood emission estimate (g/s): 0.03179246375257865
+Relative emission error (%): 8.904115321869076
+PCA
+Concentration RMSE (ppm): 0.03389880079960179
+Neighborhood emission estimate (g/s): 0.03034339862635106
+Relative emission error (%): 13.056164394035473
+
+Test Seed: 100
+Raw
+Concentration RMSE (ppm): 0.04938449158143929
+Neighborhood emission estimate (g/s): 0.023459544555433722
+Relative emission error (%): 32.78067462532513
+PCA
+Concentration RMSE (ppm): 0.033853332043088796
+Neighborhood emission estimate (g/s): 0.018851281479111418
+Relative emission error (%): 45.9848668207127
