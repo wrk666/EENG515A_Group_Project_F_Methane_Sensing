@@ -1,7 +1,7 @@
 import copy
 
 import numpy as np
-from SrmEstimator import SrmEstimator
+from Ruikun_Sensing.SrmEstimator import SrmEstimator
 
 class EmgrEstimator():
     def __init__(self, srm_estimator, dt=1.0, d=2.0, ap=1.0, bp=1e-13, ew=1e-16):
@@ -56,6 +56,9 @@ class EmgrEstimator():
     def update_W(self, W):
         self.W_ = W
 
+    # TODO: This is my previous research code for Alex's reference.
+    # For svd here, I use lib function np.linalg.svd, you can implement your own version in a new function,
+    # For socre, the score calculation now follows the definition of J(x) in the paper, you can try add condition number or other metric into J(x)
     def compute_score(self, W, record_met=False):
         # W = self.W_
 

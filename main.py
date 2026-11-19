@@ -216,7 +216,7 @@ def report(name, log, steps=(300, 600, 900, 1200, 1600, N_STEPS)):
     for s in steps:
         loc = log["loc"][s - 1]
         print(f"   step {s:5d}:Q_true: {Q_TRUE} | 3x3 neighbor Q_hat: {log['q_neigh'][s - 1]:7.4f} g/s | "
-              f"Q_rel_error: {log['q_neigh_rel_err'][s - 1]:7.2%} | location error "
+              f"Q_rel_error: {log["q_neigh_rel_err"][s - 1]:7.2%} | location error "
               f"{np.linalg.norm(loc - np.array(SOURCE_XY)):6.1f} m")
 
 

@@ -15,7 +15,7 @@ for seed in [0, 42, 100]:
         if name == 'Raw':
             denoise = IdentityDenoiser()
         else:
-            denoise = WindowPCADenoiser(train)
+            denoise = WindowPCADenoiser(train, window=21, n_components=9)
 
         # Using matching noise and the same fixed path for the two methods
         _, log = run('lawnmower', seed=seed, denoiser=denoise)
