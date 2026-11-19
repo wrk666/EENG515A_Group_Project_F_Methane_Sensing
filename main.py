@@ -92,11 +92,47 @@ class WindowPCADenoiser:
     "Skylor can define the PCA Denoiser here"
 
     def __init__(self, train, window=21, n_components=4):
-        pass
+        from sklearn.decomposition import PCA
+
+        self.windowSize = window
+        self.history = []
+
+        ## Create training windows within each training flight ##
+        trainWindows = []
+
+        # f is flight #
+        # s is start #
+        for f in train:
+            for s in range(len(f) - self.windowSize + 1):
+                trainWindows.append(f[s:s + self.windowSize])
+
+        trainWindows = np.array(trainWindows)
+
+        ## Fitting pca using the noisy training windows ##
+        self.pca = PCA(n_components=n_components, svd_solver='full')
+        self.pca.fit(trainWindows)
 
     # Input y_raw with measurement, output the denoised data.
     def update(self, y_raw):
-        pass
+
+        ## save the latest noisy measurement ##
+        self.history.append(float(y_raw))
+
+        ## keeping only the most recent readings needed for one window ##
+        self.history = self.history[-self.windowSize:]
+
+        #Using raw measuremeants until we have a complted window #
+        if len(self.history) < self.windowSize:
+            return float(y_raw)
+
+        # current window for pca and project into pca coord. #
+        currentWindow = np.array(self.history).reshape(1, -1)
+        score = self.pca.transform(currentWindow)
+
+        # Reconstruct windows and add back the saved training means #
+        rebuitWindows = self.pca.inverse_transform(score)
+
+        return float(rebuitWindows[0, -1])
 
 
 def make_training_flights(n_flights=60, seed=1):
