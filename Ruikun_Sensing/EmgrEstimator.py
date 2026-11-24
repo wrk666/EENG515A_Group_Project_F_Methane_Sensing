@@ -4,7 +4,7 @@ import numpy as np
 from Ruikun_Sensing.SrmEstimator import SrmEstimator
 
 class EmgrEstimator():
-    def __init__(self, srm_estimator, dt=1.0, d=2.0, ap=1.0, bp=1e-13, ew=1e-16):
+    def __init__(self, srm_estimator, dt=1.0, d=2.0, ap=1.0, bp=1e-4, cp= 1, ew=1e-16):
         self.srm_ = srm_estimator
         self.dt_ = dt
         self.d_ = d
@@ -13,7 +13,8 @@ class EmgrEstimator():
                                 #1/(1-gamma)=approximated window size，when 0.995 it's 200 steps' window,0.98=50steps，0.95 approximately equals to 20 steps
 
         self.ap_ = ap
-        self.bp_ = bp
+        self.bp_ = bp   #can sweep this weights in {1e-4,1e-3,1e-2, 1e-1, 1}
+        self.cp_ = cp   #can sweep this weights in {0, 0.25, 0.5, 1}
         self.ew_ = ew
 
         self.W_ = np.zeros((2, 2))
@@ -21,6 +22,7 @@ class EmgrEstimator():
         self.score_history_ = []
         self.det_history_ = []
         self.min_svd_history_ = []
+        self.cond_history_ = []
 
     #phi is essentially the gradient of current concentration field, here already use Y^=HQ^
     def compute_gradient(self, xm, wind):
@@ -58,15 +60,19 @@ class EmgrEstimator():
 
     # TODO: This is my previous research code for Alex's reference.
     # For svd here, I use lib function np.linalg.svd, you can implement your own version in a new function,
-    # For socre, the score calculation now follows the definition of J(x) in the paper, you can try add condition number or other metric into J(x)
+    # For socre, the score calculation now follows the definition of J(x) in the paper, you can try add condition number into J(x), so that the code would be
+    # condition_number = np.max(np.linalg.svd(W + ew * np.eye(2), compute_uv=False)) / min_svd
+    # score = (-self.ap_ * np.log(detW) + self.bp_ / min_svd + self.cp_ * condition_number )
+    # You can define and tune the weight "self.cp_" according to the performance. If the performance cannot be better, we can just use the current version.
     def compute_score(self, W, record_met=False):
-        # W = self.W_
 
         ew = self.ew_
 
         detW = np.linalg.det(W + ew * np.eye(2))
 
-        min_svd = np.min(np.linalg.svd(W + ew * np.eye(2), compute_uv=False))
+        s = np.linalg.svd(W + ew * np.eye(2), compute_uv=False)
+
+        min_svd, cond = s.min(), s.max() / s.min()
 
         score = (-self.ap_ * np.log(detW) + self.bp_ / min_svd)
 
@@ -78,12 +84,36 @@ class EmgrEstimator():
 
         return score
 
+    #TODO: You can define a new function to compute score at here, and then call this function in function step:
+    def compute_score_2(self, W, record_met=False):
+
+        ew = self.ew_
+
+        detW = np.linalg.det(W + ew * np.eye(2))
+
+        s = np.linalg.svd(W + ew * np.eye(2), compute_uv=False)
+
+        min_svd, cond = s.min(), s.max() / s.min()
+
+        score = -self.ap_ * np.log(detW) + self.bp_ / min_svd + self.cp_ * np.log(cond)
+
+        # record some metric
+        if record_met:
+            self.score_history_.append(score)
+            self.det_history_.append(detW)
+            self.min_svd_history_.append(min_svd)
+            self.cond_history_.append(cond)
+        return score
+
+
+
     def step(self, xm, wind, update_W=False, record_met=False):
         phi = self.compute_gradient(xm, wind)
 
         W = self.calculate_W(phi, update_W)
 
         score = self.compute_score(W, record_met)
+        # score = self.compute_score_2(W, record_met)
 
         return {
             "phi": phi,

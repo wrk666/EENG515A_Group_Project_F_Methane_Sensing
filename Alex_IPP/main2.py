@@ -192,7 +192,9 @@ def run(policy, seed=SEED, n_steps=N_STEPS, denoiser=None):
         log["q_neigh"].append(qm["neighborhood"]["Q_hat"]); log["loc"].append(cand[qm["argmax_idx"]])
         log["q_neigh_rel_err"].append(qm["neighborhood"]["rel_error"])
         # 4. TODO: Path planning: choose the next position (Alex's part, you can refer to "SrmEstimator.py")
-        if policy == "svd" and detected and k + 1 < n_steps:
+        # Ruikun's comment: EMGR is the matrix that guides our path planning(2x2 matrix in EmgrEstimator.py),
+        # while svd is only a method which uses W. Do SVD to W, then calculate the score in the compute_score() in EmgrEstimator.py
+        '''if policy == "svd" and detected and k + 1 < n_steps:
             xm, _ = choose_next_position(
                 measurement_rows[: k + 1],
                 xm,
@@ -201,7 +203,8 @@ def run(policy, seed=SEED, n_steps=N_STEPS, denoiser=None):
                 bounds=((X_MIN, Y_MIN), (X_MAX, Y_MAX)),
                 penalty=lambda point: boundary_and_visit(point, visit_map),
             )
-        elif policy.startswith("emgr") and detected:
+        '''
+        if policy.startswith("emgr") and detected:
             best, best_xp, best_W = np.inf, None, None
             for mv in MOVES:
                 xp = np.clip(xm + mv, 0, 198)
@@ -244,7 +247,7 @@ if __name__ == "__main__":
         # "lawnmower_rev",
         # "emgr",
         "emgr_anchor",
-        "svd",
+        # "svd",
     ]
     for policy in policy_list:
         cand, log = run(policy)
